@@ -1,6 +1,6 @@
 import os
-os.environ["KERAS_BACKEND"] = "jax"
 
+os.environ["KERAS_BACKEND"] = "jax"
 import keras
 import numpy as np
 import matplotlib.pyplot as plt
@@ -8,50 +8,40 @@ import seaborn as sns
 
 #%% Set seeds
 seed = 42
-np.random.seed(seed)
+keras.utils.set_random_seed(seed)
 
-#%% Import MNIST
-(x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
+def generate_pref_pairs_dataset(x, y, N=None):
+    # Generate (input, input) -> (output, output) examples from MNIST (x, y) data
 
-#%% Scale images to the [0, 1] range
-x_train = x_train.astype("float32") / 255
-x_test = x_test.astype("float32") / 255
+    x = x.astype("float32") / 255 # Scale images to the [0, 1] range
+    y = y.astype("float32") / 9 # Scale labels to the [0, 1] range
 
-#%% Scale labels to the [0, 1] range
-y_train = y_train.astype("float32") / 9
-y_test = y_test.astype("float32") / 9
+    # Make sure images have shape (28, 28, 1)
+    x = np.expand_dims(x, -1)
 
-#%% Make sure images have shape (28, 28, 1)
-x_train = np.expand_dims(x_train, -1)
-x_test = np.expand_dims(x_test, -1)
-print("x_train shape:", x_train.shape)
-print("y_train shape:", y_train.shape)
-print(x_train.shape[0], "train samples")
-print(x_test.shape[0], "test samples")
+    # The (x1, x2) values consitute a comparison between two inputs, and the y values
+    # are the corresponding ground truth utilities for the individual inputs.
+    # Preferences are assumed to be Boltzmann distributed relative to these utilities,
+    # with varying temperatures.
 
-#%% Generate (input, input) -> (output, output) examples
+    # The goal is to train a model to predict the utilities from the inputs and preferences
 
-# The (x1, x2) values consitute a comparison between two inputs, and the y values
-# are the corresponding ground truth utilities for the individual inputs.
-# Preferences are assumed to be Boltzmann distributed relative to these utilities,
-# with varying temperatures.
+    # Generate random indexes for the first and second inputs
+    if N is not None:
+        idx1 = np.random.randint(0, len(x), size=(N,))
+        idx2 = np.random.randint(0, len(x), size=(N,))
+    else:
+        idx1 = np.arange(len(x))
+        idx2 = np.arange(len(x))
+        np.random.shuffle(idx1)
+        np.random.shuffle(idx2)
 
-# The goal is to train a model to predict the utilities from the inputs and preferences
-
-# Generate random indexes for the first and second inputs
-N = 60000
-# idx1 = np.random.randint(0, x_train.shape[0], size=(N,))
-# idx2 = np.random.randint(0, x_train.shape[0], size=(N,))
-idx1 = np.arange(N)
-idx2 = np.arange(N)
-np.random.shuffle(idx1)
-np.random.shuffle(idx2)
-
-# Select input pairs and corresponding labels
-x_train1 = x_train[idx1]
-x_train2 = x_train[idx2]
-utility_train1 = y_train[idx1]
-utility_train2 = y_train[idx2]
+    # Select input pairs and corresponding 'utilities'
+    x1 = x[idx1]
+    x2 = x[idx2]
+    u1 = y[idx1]
+    u2 = y[idx2]
+    return (x1, x2), (u1, u2)
 
 def boltzmann_probability(utility1, utility2, temp):
     max_utility = np.maximum(utility1, utility2)
@@ -61,31 +51,38 @@ def boltzmann_probability(utility1, utility2, temp):
     return exp_diff1 / (exp_diff1 + exp_diff2)
 
 #%%
-temps_easy = 10**np.random.uniform(low=-2., high=-2., size=N).astype(np.float32)
-temps_hard = 10**np.random.uniform(low=-2., high=2., size=N).astype(np.float32)
-temps = temps_easy
-pr_prefer_1st = boltzmann_probability(utility_train1, utility_train2, temps)
+# Import MNIST
+N = 100000
+(x_train, y_train), (x_test, y_test) = keras.datasets.mnist.load_data()
+(x1_train, x2_train), (u1_train, u2_train) = generate_pref_pairs_dataset(x_train, y_train, N)
+(x1_test, x2_test), (u1_test, u2_test) = generate_pref_pairs_dataset(x_test, y_test)
 
-# Sample preferences from bernoulli distribution
+# Generate temps and sample preferences from Boltzmann distribution
+temps = 10**np.random.uniform(low=-2., high=2., size=N).astype(np.float32)
+Tmin = min(temps)
+pr_prefer_1st = boltzmann_probability(u1_train, u2_train, temps)
 prefs = np.random.binomial(1, pr_prefer_1st)
+
+#%%
 sns.histplot(pr_prefer_1st)
 plt.title('Pr(U(x1) > U(x2))')
 
 #%%
 def build_preference_model():
+    glorot = keras.initializers.GlorotUniform(seed=seed)
     x1_input = keras.Input(shape=(28,28,1))
     x2_input = keras.Input(shape=(28,28,1))
     temp_input = keras.Input(shape=(1,))
 
     conv_base = keras.Sequential([
-        keras.layers.Conv2D(64, kernel_size=(3, 3), activation="relu"),
-        keras.layers.Conv2D(64, kernel_size=(3, 3), activation="relu"),
+        keras.layers.Conv2D(64, kernel_size=(3, 3), activation="relu", kernel_initializer=glorot),
+        keras.layers.Conv2D(64, kernel_size=(3, 3), activation="relu", kernel_initializer=glorot),
         keras.layers.MaxPooling2D(pool_size=(2, 2)),
-        keras.layers.Conv2D(128, kernel_size=(3, 3), activation="relu"),
-        keras.layers.Conv2D(128, kernel_size=(3, 3), activation="relu"),
+        keras.layers.Conv2D(128, kernel_size=(3, 3), activation="relu", kernel_initializer=glorot),
+        keras.layers.Conv2D(128, kernel_size=(3, 3), activation="relu", kernel_initializer=glorot),
         keras.layers.GlobalAveragePooling2D(),
-        keras.layers.Dropout(0.5),
-        keras.layers.Dense(1, activation="sigmoid", dtype="float32"),
+        keras.layers.Dropout(0.5, seed=seed),
+        keras.layers.Dense(1, activation="sigmoid", dtype="float32", kernel_initializer=glorot),
     ])
 
     u1 = conv_base(x1_input)
@@ -102,8 +99,9 @@ def build_preference_model():
     )
     return model
 
-model = build_preference_model()
-model.compile(
+#%% Build a model using the ground-truth temperature data
+true_model = build_preference_model()
+true_model.compile(
     loss=keras.losses.BinaryCrossentropy(),
     optimizer=keras.optimizers.Adam(learning_rate=1e-3),
     metrics=[
@@ -111,17 +109,123 @@ model.compile(
     ],
 )
 
-model.fit(
-    x=[x_train1, x_train2, temps],
+true_model.fit(
+    x=[x1_train, x2_train, temps],
     y=prefs,
     batch_size=32,
     epochs=1,
 )
 
-#%%
-for i in range(100):
-    plt.imshow(np.concatenate([x_train1[i], x_train2[i]], axis=1))
-    # print([utility_train1[0], utility_train2[0]], temps[0])
-    pr_prefer_left = model([x_train1[i:i+1], x_train2[i:i+1], temps[i:i+1]])
-    plt.title(f'Pr(U(left) > U(right)) = {pr_prefer_left[0,0]}')
+#%% Let's try to build a "perfectly rational" preference model, using a fixed (low) temperature
+fixed_temps = np.ones_like(temps) * temps.min()
+rational_model = build_preference_model()
+rational_model.compile(
+    loss=keras.losses.BinaryCrossentropy(),
+    optimizer=keras.optimizers.Adam(learning_rate=1e-3),
+    metrics=[
+        keras.metrics.BinaryAccuracy(name="acc"),
+    ],
+)
+rational_model.fit(
+    x=[x1_train, x2_train, fixed_temps],
+    y=prefs,
+    batch_size=32,
+    epochs=1,
+)
+
+#%% Skyline: if prefs actually used T=Tmin
+pr_prefer_1st_skyline = boltzmann_probability(u1_train, u2_train, fixed_temps)
+prefs_skyline = np.random.binomial(1, pr_prefer_1st_skyline)
+
+skyline_model = build_preference_model()
+skyline_model.compile(
+    loss=keras.losses.BinaryCrossentropy(),
+    optimizer=keras.optimizers.Adam(learning_rate=1e-3),
+    metrics=[
+        keras.metrics.BinaryAccuracy(name="acc"),
+    ],
+)
+skyline_model.fit(
+    x=[x1_train, x2_train, fixed_temps],
+    y=prefs_skyline,
+    batch_size=32,
+    epochs=1,
+)
+
+#%% Build a model using only the low-temperature data
+low_temp_model = build_preference_model()
+low_temp_model.compile(
+    loss=keras.losses.BinaryCrossentropy(),
+    optimizer=keras.optimizers.Adam(learning_rate=1e-3),
+    metrics=[
+        keras.metrics.BinaryAccuracy(name="acc"),
+    ],
+)
+
+percentile = 0.1
+temp_cutoff = sorted(temps)[int(N*percentile)]
+low_temp_idx = temps < temp_cutoff
+
+low_temp_model.fit(
+    x=[x1_train[low_temp_idx], x2_train[low_temp_idx], temps[low_temp_idx]],
+    y=prefs[low_temp_idx],
+    batch_size=32,
+    epochs=1,
+)
+
+#%% Evaluate a model
+def mean_absolute_error(y_true, y_pred):
+    return keras.ops.mean(keras.ops.abs(y_true - y_pred))
+
+def kl_divergence(y_true, y_pred):
+    vmin = np.zeros_like(y_pred)
+    vmin[y_pred==0.5] = -np.log(0.5)
+    return keras.ops.binary_crossentropy(target=y_true, output=y_pred) - vmin
+
+def evaluate_model(model, model_name, ax=None, type='hist'):
+    pref_classes = {
+        '>': u1_test > u2_test,
+        '~': u1_test == u2_test,
+        '<': u1_test < u2_test,
+    }
+    fake_temps = Tmin * np.ones(len(x1_test))
+    pr_prefer_left = model.predict((x1_test, x2_test, fake_temps), batch_size=32)
+
+    vmin = pr_prefer_left.min()
+    vmax = pr_prefer_left.max()
+    bins = np.linspace(vmin, vmax, 30)
+
+    pref_predictions = {
+        key: pr_prefer_left[idx].squeeze() for key, idx in pref_classes.items()
+    }
+
+    should_show_plot = False
+    if ax is None:
+        should_show_plot = True
+        fig, ax = plt.subplots()
+    ax.set_title('Model: ' + model_name)
+    ax.set_xlabel('Probability')
+    if type == 'hist':
+        sns.histplot(pref_predictions, alpha=0.7, palette=['C0', 'C8', 'C3'], bins=bins, kde=False, stat="count", ax=ax, legend=True)
+        ax.set_ylabel('Count')
+        ax.get_legend().set_loc('upper center' if 'rational' not in model_name else 'best')
+    elif type == 'kde':
+        sns.kdeplot(pref_predictions, alpha=0.7, palette=['C0', 'C8', 'C3'], ax=ax, common_norm=False, clip=[0,1])
+        ax.set_ylabel('Density')
+    else:
+        raise ValueError(f"Unknown 'type' parameter: {type}")
+    if should_show_plot:
+        ax.show()
+
+models = {
+    'skyline_model': skyline_model,
+    'rational_model': rational_model,
+    'true_temp_model': true_model,
+    'low_temp_model': low_temp_model,
+}
+for type in ['hist', 'kde']:
+    fig, axes = plt.subplots(2,2, figsize=(10, 6), sharex=True)
+    for (model_name, model), ax in zip(models.items(), axes.flatten()):
+        evaluate_model(model, model_name, ax=ax, type=type)
+    plt.tight_layout()
     plt.show()

@@ -100,8 +100,8 @@ def build_preference_model():
     return model
 
 #%% Build a model using the ground-truth temperature data
-true_model = build_preference_model()
-true_model.compile(
+true_temp_model = build_preference_model()
+true_temp_model.compile(
     loss=keras.losses.BinaryCrossentropy(),
     optimizer=keras.optimizers.Adam(learning_rate=1e-3),
     metrics=[
@@ -109,7 +109,7 @@ true_model.compile(
     ],
 )
 
-true_model.fit(
+true_temp_model.fit(
     x=[x1_train, x2_train, temps],
     y=prefs,
     batch_size=32,
@@ -220,7 +220,7 @@ def evaluate_model(model, model_name, ax=None, type='hist'):
 models = {
     'skyline_model': skyline_model,
     'rational_model': rational_model,
-    'true_temp_model': true_model,
+    'true_temp_model': true_temp_model,
     'low_temp_model': low_temp_model,
 }
 for type in ['hist', 'kde']:

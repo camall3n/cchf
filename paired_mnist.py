@@ -1,3 +1,6 @@
+import os
+import pickle
+
 import backend
 import keras
 import numpy as np
@@ -13,9 +16,12 @@ seed = 42
 keras.utils.set_random_seed(seed)
 
 #%% Configure experiment
-N = 1000000
+N = 100000
 Tmin = 1e-2
 Tmax = 1e2
+models_dir = f'models/n_{N}/'
+for subdir in ['prefs', 'utils']:
+    os.makedirs(models_dir+subdir, exist_ok=True)
 
 #%% Generate datasets
 train, test = generate_dataset(n_train=N, tmin=Tmin, tmax=Tmax)
@@ -52,34 +58,47 @@ model_settings = {
 }
 models = {name: build_preference_model(seed) for name in model_settings.keys()}
 
-for name, settings in model_settings.items():
-    data, temps = settings
-    if temps is None:
-        temps = data.T
-    if name != 'gt_utils':
-        subcomponent = 0
-        loss = keras.losses.BinaryCrossentropy()
-        metrics = [keras.metrics.BinaryAccuracy(name="acc")]
-        labels = data.y_hat
-    else:
-        subcomponent = 1
-        loss=[keras.losses.MeanSquaredError(), keras.losses.MeanSquaredError()],
-        metrics=[
-            keras.metrics.MeanSquaredError(name="mse1"),
-            keras.metrics.MeanSquaredError(name="mse2"),
-        ]
-        labels=[data.u1, data.u2]
-    models[name][subcomponent].compile(
-        loss=loss,
-        optimizer=keras.optimizers.Adam(learning_rate=1e-3),
-        metrics=metrics,
-    )
-    models[name][subcomponent].fit(
-        x=[data.x1, data.x2, temps],
-        y=labels,
-        batch_size=32,
-        epochs=1,
-    )
+try:
+    # Load the models
+    for name, model_tuple in models.items():
+        prefs_model = keras.saving.load_model(models_dir+f'prefs/{name}.keras')
+        utils_model = keras.saving.load_model(models_dir+f'utils/{name}.keras')
+        models[name] = (prefs_model, utils_model)
+except ValueError:
+    # Train the models
+    for name, settings in model_settings.items():
+        data, temps = settings
+        if temps is None:
+            temps = data.T
+        if name != 'gt_utils':
+            subcomponent = 0
+            loss = keras.losses.BinaryCrossentropy()
+            metrics = [keras.metrics.BinaryAccuracy(name="acc")]
+            labels = data.y_hat
+        else:
+            subcomponent = 1
+            loss=[keras.losses.MeanSquaredError(), keras.losses.MeanSquaredError()],
+            metrics=[
+                keras.metrics.MeanSquaredError(name="mse1"),
+                keras.metrics.MeanSquaredError(name="mse2"),
+            ]
+            labels=[data.u1, data.u2]
+        models[name][subcomponent].compile(
+            loss=loss,
+            optimizer=keras.optimizers.Adam(learning_rate=1e-3),
+            metrics=metrics,
+        )
+        models[name][subcomponent].fit(
+            x=[data.x1, data.x2, temps],
+            y=labels,
+            batch_size=32,
+            epochs=1,
+        )
+    # Save the models
+    for name, (pref_model, utils_model) in models.items():
+        keras.saving.save_model(pref_model, models_dir+f'prefs/{name}.keras')
+        keras.saving.save_model(utils_model, models_dir+f'utils/{name}.keras')
+
 
 #%% Evaluate model probabilities
 def plot_model_probs(data, model, model_name, ax=None, type='hist'):

@@ -1,5 +1,3 @@
-import warnings
-
 import backend
 import keras
 import numpy as np
@@ -54,49 +52,46 @@ model_settings = {
 }
 models = {name: build_preference_model(seed) for name in model_settings.keys()}
 
-with warnings.catch_warnings(action="ignore", category=UserWarning):
-    for name, settings in model_settings.items():
-        data, temps = settings
-        if temps is None:
-            temps = data.T
-        if name != 'gt_utils':
-            subcomponent = 0
-            loss = keras.losses.BinaryCrossentropy()
-            metrics = [keras.metrics.BinaryAccuracy(name="acc")]
-            labels = data.y_hat
-        else:
-            subcomponent = 1
-            loss=[keras.losses.MeanSquaredError(), keras.losses.MeanSquaredError()],
-            metrics=[
-                keras.metrics.MeanSquaredError(name="mse1"),
-                keras.metrics.MeanSquaredError(name="mse2"),
-            ]
-            labels=[data.u1, data.u2]
-        models[name][subcomponent].compile(
-            loss=loss,
-            optimizer=keras.optimizers.Adam(learning_rate=1e-3),
-            metrics=metrics,
-        )
-        models[name][subcomponent].fit(
-            x=[data.x1, data.x2, temps],
-            y=labels,
-            batch_size=32,
-            epochs=1,
-        )
+for name, settings in model_settings.items():
+    data, temps = settings
+    if temps is None:
+        temps = data.T
+    if name != 'gt_utils':
+        subcomponent = 0
+        loss = keras.losses.BinaryCrossentropy()
+        metrics = [keras.metrics.BinaryAccuracy(name="acc")]
+        labels = data.y_hat
+    else:
+        subcomponent = 1
+        loss=[keras.losses.MeanSquaredError(), keras.losses.MeanSquaredError()],
+        metrics=[
+            keras.metrics.MeanSquaredError(name="mse1"),
+            keras.metrics.MeanSquaredError(name="mse2"),
+        ]
+        labels=[data.u1, data.u2]
+    models[name][subcomponent].compile(
+        loss=loss,
+        optimizer=keras.optimizers.Adam(learning_rate=1e-3),
+        metrics=metrics,
+    )
+    models[name][subcomponent].fit(
+        x=[data.x1, data.x2, temps],
+        y=labels,
+        batch_size=32,
+        epochs=1,
+    )
 
 #%% Evaluate model probabilities
 def plot_model_probs(data, model, model_name, ax=None, type='hist'):
     pref_classes = {
         '>': data.y == 1,
-        '~': data.y == 0,
-        '<': data.y == -1,
+        '~': data.y == 0.5,
+        '<': data.y == 0,
     }
     fixed_Tmin = Tmin * np.ones(len(data.x1))
     p_hat = model[0].predict((data.x1, data.x2, fixed_Tmin), batch_size=32)
 
-    vmin = p_hat.min()
-    vmax = p_hat.max()
-    bins = np.linspace(vmin, vmax, 30)
+    bins = np.linspace(0, 1, 30)
 
     p_hat_by_type = {
         key: p_hat[idx].squeeze() for key, idx in pref_classes.items()
@@ -147,7 +142,7 @@ def plot_utility_calibration(data, model, model_name, ax=None):
     ax.set_title('Model: ' + model_name)
     ax.set_xlabel('Actual utility')
     sns.violinplot(x=9*test.u1, y=9*u1_hat.squeeze(), ax=ax, legend=True)
-    # ax.set_ylim([0,9])
+    ax.set_ylim([0,9])
     ax.set_ylabel('Predicted utility')
     if should_show_plot:
         ax.show()

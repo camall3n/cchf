@@ -40,7 +40,7 @@ def generate_pref_pairs_dataset(x, y, N=None, tmin=1e-2, tmax=1e2):
     x2 = x[idx2]
     u1 = y[idx1]
     u2 = y[idx2]
-    true_prefs = np.sign(u1 - u2)
+    true_prefs = (np.sign(u1 - u2) + 1) / 2
     temps = np.e**np.random.uniform(low=np.log(tmin), high=np.log(tmax), size=len(x1))#.astype(np.float32)
     p_boltz = boltzmann_probability(u1, u2, temps)
     boltz_prefs = np.random.binomial(1, p_boltz)
@@ -64,7 +64,7 @@ def generate_dataset(n_train=None, n_test=None, tmin=1e-2, tmax=1e2):
 
 def filter_dataset_by_temp(dataset, tmax):
     low_temp_idx = dataset.T <= tmax
-    data_dict = dataset.__dict__
+    data_dict = dataset.__dict__.copy()
     for key, val in data_dict.items():
         data_dict[key] = val[low_temp_idx]
     return Namespace(**data_dict)

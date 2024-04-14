@@ -16,10 +16,10 @@ seed = 42
 keras.utils.set_random_seed(seed)
 
 #%% Configure experiment
-N = 100000
+N = 1000000
 Tmin = 1e-2
 Tmax = 1e2
-models_dir = f'models/n_{N}/'
+models_dir = f'models/binary/n_{N}/'
 for subdir in ['prefs', 'utils']:
     os.makedirs(models_dir+subdir, exist_ok=True)
 
@@ -191,7 +191,7 @@ def plot_probability_calibration(model, model_name, ax=None):
         ax.show()
 
 
-fig, axes = plt.subplots(1,3, figsize=(10, 4), sharex=True, sharey=True)
+fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True, sharey=True)
 for name, ax in zip(plot_models, axes.flatten()):
     plot_probability_calibration(models[name], name, ax=ax)
 plt.tight_layout()

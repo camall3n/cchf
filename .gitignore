@@ -9,6 +9,7 @@ images/
 videos/
 results/
 results
+models/
 **__pycache__
 **.pyc
 .onager

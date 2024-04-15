@@ -1,8 +1,9 @@
 import numpy as np
 
-def boltzmann_probability(utility1, utility2, temp):
-    max_utility = np.maximum(utility1, utility2)
+def boltzmann_probability(utilities, temp):
+    max_utility = np.maximum(*[u.astype(np.float32) for u in utilities])
     # Subtract the max utility to prevent overflow
-    exp_diff1 = np.exp((utility1 - max_utility) / temp)
-    exp_diff2 = np.exp((utility2 - max_utility) / temp)
-    return exp_diff1 / (exp_diff1 + exp_diff2)
+    exp_diff = [np.exp((u - max_utility) / temp) for u in utilities]
+    denom = sum(exp_diff)
+    p_boltz = np.array([numerator / denom for numerator in exp_diff]).transpose()
+    return p_boltz

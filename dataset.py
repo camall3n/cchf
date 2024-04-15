@@ -41,9 +41,16 @@ def generate_pref_pairs_dataset(x, y, N=None, tmin=1e-2, tmax=1e2):
     u1 = y[idx1]
     u2 = y[idx2]
     true_prefs = (np.sign(u1 - u2) + 1) / 2
-    temps = np.e**np.random.uniform(low=np.log(tmin), high=np.log(tmax), size=len(x1))#.astype(np.float32)
-    p_boltz = boltzmann_probability(u1, u2, temps)
-    boltz_prefs = np.random.binomial(1, p_boltz)
+    rng = np.random.default_rng()
+    temps = np.e**rng.uniform(low=np.log(tmin), high=np.log(tmax), size=len(x1))#.astype(np.float32)
+    # 1 corresponds to preferring A
+    p_boltz_2ary = boltzmann_probability((u1, u2), temps)[:,0]
+    y_boltz_2ary = rng.binomial(1, p_boltz_2ary)
+
+    u_indifferent = (u1 + u2) / 2
+    # flip choice order so that 1 still corresponds to preferring A
+    p_boltz_3ary = boltzmann_probability((u2, u_indifferent, u1), temps)
+    y_boltz_3ary = np.argmax(rng.multinomial(1, p_boltz_3ary), axis=-1) / 2
 
     return Namespace(**{
         'x1': x1,
@@ -51,9 +58,11 @@ def generate_pref_pairs_dataset(x, y, N=None, tmin=1e-2, tmax=1e2):
         'u1': u1,
         'u2': u2,
         'T': temps,
-        'p_boltz': p_boltz,
-        'y_boltz': boltz_prefs,
-        'y_ternary': true_prefs,
+        'p_boltz_2ary': p_boltz_2ary,
+        'y_boltz_2ary': y_boltz_2ary,
+        'p_boltz_3ary': p_boltz_3ary,
+        'y_boltz_3ary': y_boltz_3ary,
+        'y': true_prefs,
     })
 
 def generate_dataset(n_train=None, n_test=None, tmin=1e-2, tmax=1e2):

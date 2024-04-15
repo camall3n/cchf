@@ -19,7 +19,7 @@ keras.utils.set_random_seed(seed)
 N = 1000000
 Tmin = 1e-2
 Tmax = 1e2
-model_str = 'p_boltz'
+model_str = 'ternary'
 models_dir = f'models/{model_str}/n_{N}/'
 for subdir in ['prefs', 'utils']:
     os.makedirs(models_dir+subdir, exist_ok=True)
@@ -41,7 +41,7 @@ fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True, sharey=True)
 datasets = [train, train_tmin, train_low_temp]
 titles = ['default', 'tmin', 'low_temp']
 for data, title, ax in zip(datasets, titles, axes):
-    sns.histplot(data.p_boltz, bins=50, ax=ax)
+    sns.histplot(data.p_boltz_2ary, bins=50, ax=ax)
     ax.set_xlabel('p_boltz')
     ax.set_ylabel('Count')
     ax.set_title(title)
@@ -79,9 +79,9 @@ except ValueError:
                 case 'p_boltz':
                     labels = data.p_boltz
                 case 'binary':
-                    labels = data.y_boltz
+                    labels = data.y_boltz_2ary
                 case 'ternary':
-                    labels = data.y_ternary
+                    labels = data.y_boltz_3ary
         else:
             subcomponent = 1
             loss=[keras.losses.MeanSquaredError(), keras.losses.MeanSquaredError()],
@@ -110,9 +110,9 @@ except ValueError:
 #%% Evaluate model probabilities
 def plot_model_probs(data, model, model_name, ax=None, type='hist'):
     pref_classes = {
-        '>': data.y_ternary == 1,
-        '~': data.y_ternary == 0.5,
-        '<': data.y_ternary == 0,
+        '>': data.y == 1,
+        '~': data.y == 0.5,
+        '<': data.y == 0,
     }
     fixed_Tmin = Tmin * np.ones(len(data.x1))
     p_hat = model[0].predict((data.x1, data.x2, fixed_Tmin), batch_size=32)
@@ -149,7 +149,7 @@ plot_models = [
     'gt_utils',
 ]
 for type in ['hist', 'kde']:
-    fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True, sharey=True)
+    fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True, sharey=(type=='hist'))
     for name, ax in zip(plot_models, axes.flatten()):
         plot_model_probs(test, models[name], name, ax=ax, type=type)
     plt.tight_layout()
@@ -191,7 +191,7 @@ def plot_probability_calibration(model, model_name, ax=None):
         fig, ax = plt.subplots()
     ax.set_title('Model: ' + model_name)
     ax.set_xlabel(r'Actual $p_{boltz}$')
-    sns.kdeplot(x=test.p_boltz, y=p_hat.squeeze(), clip=[0,1], ax=ax, legend=True)
+    sns.kdeplot(x=test.p_boltz_2ary, y=p_hat.squeeze(), clip=[0,1], ax=ax, legend=True)
     ax.set_ylim([0,1])
     ax.set_ylabel(r'Predicted $\hat p_{boltz}$')
     if should_show_plot:

@@ -19,7 +19,8 @@ keras.utils.set_random_seed(seed)
 N = 1000000
 Tmin = 1e-2
 Tmax = 1e2
-models_dir = f'models/binary/n_{N}/'
+model_str = 'p_boltz'
+models_dir = f'models/{model_str}/n_{N}/'
 for subdir in ['prefs', 'utils']:
     os.makedirs(models_dir+subdir, exist_ok=True)
 
@@ -74,7 +75,13 @@ except ValueError:
             subcomponent = 0
             loss = keras.losses.BinaryCrossentropy()
             metrics = [keras.metrics.BinaryAccuracy(name="acc")]
-            labels = data.y_hat
+            match model_str:
+                case 'p_boltz':
+                    labels = data.p_boltz
+                case 'binary':
+                    labels = data.y_boltz
+                case 'ternary':
+                    labels = data.y_ternary
         else:
             subcomponent = 1
             loss=[keras.losses.MeanSquaredError(), keras.losses.MeanSquaredError()],
@@ -103,9 +110,9 @@ except ValueError:
 #%% Evaluate model probabilities
 def plot_model_probs(data, model, model_name, ax=None, type='hist'):
     pref_classes = {
-        '>': data.y == 1,
-        '~': data.y == 0.5,
-        '<': data.y == 0,
+        '>': data.y_ternary == 1,
+        '~': data.y_ternary == 0.5,
+        '<': data.y_ternary == 0,
     }
     fixed_Tmin = Tmin * np.ones(len(data.x1))
     p_hat = model[0].predict((data.x1, data.x2, fixed_Tmin), batch_size=32)

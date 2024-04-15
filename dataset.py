@@ -52,8 +52,8 @@ def generate_pref_pairs_dataset(x, y, N=None, tmin=1e-2, tmax=1e2):
         'u2': u2,
         'T': temps,
         'p_boltz': p_boltz,
-        'y_hat': boltz_prefs,
-        'y': true_prefs,
+        'y_boltz': boltz_prefs,
+        'y_ternary': true_prefs,
     })
 
 def generate_dataset(n_train=None, n_test=None, tmin=1e-2, tmax=1e2):

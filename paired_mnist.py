@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from dataset import generate_dataset, filter_dataset_by_temp
-from model import build_preference_model
+from model import build_preference_model, load_model
 from util import boltzmann_probability
+from plotting import plot_temp_histograms, plot_model_probs, plot_utility_calibration, plot_probability_calibration
 
 #%% Set seeds
 seed = 42
@@ -19,7 +20,7 @@ keras.utils.set_random_seed(seed)
 N = 1000000
 Tmin = 1e-2
 Tmax = 1e2
-model_str = 'ternary'
+model_str = 'binary'
 models_dir = f'models/{model_str}/n_{N}/'
 for subdir in ['prefs', 'utils']:
     os.makedirs(models_dir+subdir, exist_ok=True)
@@ -37,16 +38,9 @@ train_low_temp = filter_dataset_by_temp(train, tmax=temp_cutoff)
 fixed_Tmin = np.ones_like(train.T) * Tmin
 
 #%%
-fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True, sharey=True)
 datasets = [train, train_tmin, train_low_temp]
 titles = ['default', 'tmin', 'low_temp']
-for data, title, ax in zip(datasets, titles, axes):
-    sns.histplot(data.p_boltz_2ary, bins=50, ax=ax)
-    ax.set_xlabel('p_boltz')
-    ax.set_ylabel('Count')
-    ax.set_title(title)
-plt.tight_layout()
-plt.show()
+plot_temp_histograms(datasets, titles)
 
 #%% Build the models
 model_settings = {
@@ -62,9 +56,7 @@ models = {name: build_preference_model(seed) for name in model_settings.keys()}
 try:
     # Load the models
     for name, model_tuple in models.items():
-        prefs_model = keras.saving.load_model(models_dir+f'prefs/{name}.keras')
-        utils_model = keras.saving.load_model(models_dir+f'utils/{name}.keras')
-        models[name] = (prefs_model, utils_model)
+        models[name] = load_model(models_dir, name)
 except ValueError:
     # Train the models
     for name, settings in model_settings.items():
@@ -106,100 +98,34 @@ except ValueError:
         keras.saving.save_model(pref_model, models_dir+f'prefs/{name}.keras')
         keras.saving.save_model(utils_model, models_dir+f'utils/{name}.keras')
 
-
-#%% Evaluate model probabilities
-def plot_model_probs(data, model, model_name, ax=None, type='hist'):
-    pref_classes = {
-        '>': data.y == 1,
-        '~': data.y == 0.5,
-        '<': data.y == 0,
-    }
-    fixed_Tmin = Tmin * np.ones(len(data.x1))
-    p_hat = model[0].predict((data.x1, data.x2, fixed_Tmin), batch_size=32)
-
-    bins = np.linspace(0, 1, 30)
-
-    p_hat_by_type = {
-        key: p_hat[idx].squeeze() for key, idx in pref_classes.items()
-    }
-
-    should_show_plot = False
-    if ax is None:
-        should_show_plot = True
-        fig, ax = plt.subplots()
-    ax.set_title('Model: ' + model_name)
-    ax.set_xlabel('Probability')
-    if type == 'hist':
-        sns.histplot(p_hat_by_type, alpha=0.7, palette=['C0', 'C8', 'C3'], bins=bins, kde=False, stat="count", ax=ax, legend=True)
-        ax.set_ylabel('Count')
-        ax.get_legend().set_loc('upper center' if 'rational' not in model_name else 'best')
-    elif type == 'kde':
-        sns.kdeplot(p_hat_by_type, alpha=0.7, palette=['C0', 'C8', 'C3'], ax=ax, common_norm=False, clip=[0,1])
-        ax.set_ylabel('Density')
-    else:
-        raise ValueError(f"Unknown 'type' parameter: {type}")
-    if should_show_plot:
-        ax.show()
-
 plot_models = [
     # 'skyline',
-    'rational',
-    'true_temp',
+    ('rational', r'$\beta_{max}$'),
+    ('best_fixed_temp', r'$\beta_{best}$'),
+    ('true_temp', r'$\beta$'),
     # 'low_temp',
-    'gt_utils',
+    ('gt_utils', r'$U(x)$'),
 ]
+models = {spec[0]: load_model(models_dir, spec[0]) for spec in plot_models}
+
+#%% Evaluate model probabilities
 for type in ['hist', 'kde']:
-    fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True, sharey=(type=='hist'))
-    for name, ax in zip(plot_models, axes.flatten()):
-        plot_model_probs(test, models[name], name, ax=ax, type=type)
+    fig, axes = plt.subplots(1,4, figsize=(12, 3), sharex=True, sharey=(type=='hist'))
+    for (name, title), ax in zip(plot_models, axes.flatten()):
+        plot_model_probs(test, models[name], title, ax=ax, type=type)
     plt.tight_layout()
     plt.show()
 
-
 #%% Evaluate model utilities
-def plot_utility_calibration(data, model, model_name, ax=None):
-    fixed_Tmin = Tmin * np.ones(len(data.x1))
-    u1_hat, _ = model[1].predict((data.x1, data.x2, fixed_Tmin), batch_size=32)
-
-    should_show_plot = False
-    if ax is None:
-        should_show_plot = True
-        fig, ax = plt.subplots()
-    ax.set_title('Model: ' + model_name)
-    ax.set_xlabel('Actual utility')
-    sns.violinplot(x=9*test.u1, y=9*u1_hat.squeeze(), ax=ax, legend=True)
-    ax.set_ylim([0,9])
-    ax.set_ylabel('Predicted utility')
-    if should_show_plot:
-        ax.show()
-
-
-fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True)
-for name, ax in zip(plot_models, axes.flatten()):
-    plot_utility_calibration(test, models[name], name, ax=ax)
+fig, axes = plt.subplots(1,4, figsize=(12, 3), sharex=True)
+for (name, title), ax in zip(plot_models, axes.flatten()):
+    plot_utility_calibration(test, models[name], title, ax=ax)
 plt.tight_layout()
 plt.show()
 
 #%%
-
-def plot_probability_calibration(model, model_name, ax=None):
-    p_hat = model[0].predict((test.x1, test.x2, test.T), batch_size=32)
-
-    should_show_plot = False
-    if ax is None:
-        should_show_plot = True
-        fig, ax = plt.subplots()
-    ax.set_title('Model: ' + model_name)
-    ax.set_xlabel(r'Actual $p_{boltz}$')
-    sns.kdeplot(x=test.p_boltz_2ary, y=p_hat.squeeze(), clip=[0,1], ax=ax, legend=True)
-    ax.set_ylim([0,1])
-    ax.set_ylabel(r'Predicted $\hat p_{boltz}$')
-    if should_show_plot:
-        ax.show()
-
-
-fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True, sharey=True)
-for name, ax in zip(plot_models, axes.flatten()):
-    plot_probability_calibration(models[name], name, ax=ax)
+fig, axes = plt.subplots(1,4, figsize=(12, 3), sharex=True, sharey=True)
+for (name, title), ax in zip(plot_models, axes.flatten()):
+    plot_probability_calibration(test, models[name], title, ax=ax)
 plt.tight_layout()
 plt.show()

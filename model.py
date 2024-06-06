@@ -37,3 +37,9 @@ def build_preference_model(seed):
         outputs=[u1, u2],
     )
     return model, utility_model
+
+def load_model(models_dir, name):
+    # Load a trained prefences/utilities model pair for inference
+    prefs_model = keras.saving.load_model(models_dir+f'prefs/{name}.keras')
+    utils_model = keras.saving.load_model(models_dir+f'utils/{name}.keras')
+    return (prefs_model, utils_model)

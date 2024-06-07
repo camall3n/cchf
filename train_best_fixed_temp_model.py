@@ -99,34 +99,3 @@ except ValueError:
         {'n': 100000, 'T': 0.03162277660168379},
         {'n': 1000000, 'T': 0.1778279410038923},
     ]
-
-#%% Evaluate model probabilities
-plot_models = [
-    # 'skyline',
-    'rational',
-    # 'true_temp',
-    'best_fixed_temp',
-    'gt_utils',
-]
-models = {name: load_model(models_dir, name) for name in plot_models}
-for type in ['hist', 'kde']:
-    fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True, sharey=(type=='hist'))
-    for name, ax in zip(plot_models, axes.flatten()):
-        plot_model_probs(test, models[name], name, ax=ax, type=type)
-    plt.tight_layout()
-    plt.show()
-
-
-#%% Evaluate model utilities
-fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True)
-for name, ax in zip(plot_models, axes.flatten()):
-    plot_utility_calibration(test, models[name], name, ax=ax)
-plt.tight_layout()
-plt.show()
-
-#%%
-fig, axes = plt.subplots(1,3, figsize=(10, 3), sharex=True, sharey=True)
-for name, ax in zip(plot_models, axes.flatten()):
-    plot_probability_calibration(test, models[name], name, ax=ax)
-plt.tight_layout()
-plt.show()

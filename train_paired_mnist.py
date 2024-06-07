@@ -97,35 +97,3 @@ except ValueError:
     for name, (pref_model, utils_model) in models.items():
         keras.saving.save_model(pref_model, models_dir+f'prefs/{name}.keras')
         keras.saving.save_model(utils_model, models_dir+f'utils/{name}.keras')
-
-plot_models = [
-    # 'skyline',
-    ('rational', r'$\beta_{max}$'),
-    ('best_fixed_temp', r'$\beta_{best}$'),
-    ('true_temp', r'$\beta$'),
-    # 'low_temp',
-    ('gt_utils', r'$U(x)$'),
-]
-models = {spec[0]: load_model(models_dir, spec[0]) for spec in plot_models}
-
-#%% Evaluate model probabilities
-for type in ['hist', 'kde']:
-    fig, axes = plt.subplots(1,4, figsize=(12, 3), sharex=True, sharey=(type=='hist'))
-    for (name, title), ax in zip(plot_models, axes.flatten()):
-        plot_model_probs(test, models[name], title, ax=ax, type=type)
-    plt.tight_layout()
-    plt.show()
-
-#%% Evaluate model utilities
-fig, axes = plt.subplots(1,4, figsize=(12, 3), sharex=True)
-for (name, title), ax in zip(plot_models, axes.flatten()):
-    plot_utility_calibration(test, models[name], title, ax=ax)
-plt.tight_layout()
-plt.show()
-
-#%%
-fig, axes = plt.subplots(1,4, figsize=(12, 3), sharex=True, sharey=True)
-for (name, title), ax in zip(plot_models, axes.flatten()):
-    plot_probability_calibration(test, models[name], title, ax=ax)
-plt.tight_layout()
-plt.show()

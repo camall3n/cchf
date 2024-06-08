@@ -1,6 +1,9 @@
 import backend
 import keras
 
+FULL_MODEL = 0
+UTILS_MODEL = 1
+
 def build_preference_model(seed):
     glorot = keras.initializers.GlorotUniform(seed=seed)
     x1_input = keras.Input(shape=(28,28,1))

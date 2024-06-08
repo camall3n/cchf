@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from dataset import generate_dataset, filter_dataset_by_temp
-from model import build_preference_model, load_model
+from model import build_preference_model, load_model, FULL_MODEL, UTILS_MODEL
 from util import boltzmann_probability
-from plotting import plot_temp_histograms, plot_model_probs, plot_utility_calibration, plot_probability_calibration
+from plotting import plot_temp_histograms, plot_model_probs, plot_utility_calibration, plot_probability_calibration, plot_rel_util_accuracy
 
 #%% Set seeds
 seed = 42
@@ -43,20 +43,35 @@ models = {spec[0]: load_model(models_dir, spec[0]) for spec in plot_models}
 for type in ['hist', 'kde']:
     fig, axes = plt.subplots(1, 4, figsize=(12, 3), sharex=True, sharey=(type=='hist'))
     for (name, title), ax in zip(plot_models, axes.flatten()):
-        plot_model_probs(test, models[name], title, ax=ax, type=type)
+        plot_model_probs(test, models[name], title, eval_temp=Tmin, type=type, ax=ax)
     plt.tight_layout()
     plt.show()
 
 #%% Evaluate model utilities
 fig, axes = plt.subplots(1, 4, figsize=(12, 3), sharex=True)
 for (name, title), ax in zip(plot_models, axes.flatten()):
-    plot_utility_calibration(test, models[name], title, ax=ax)
+    plot_utility_calibration(test, models[name], title, eval_temp=Tmin, ax=ax)
 plt.tight_layout()
 plt.show()
 
-#%%
+#%% Evaluate probability calibration
 fig, axes = plt.subplots(1, 4, figsize=(12, 3), sharex=True)
 for (name, title), ax in zip(plot_models, axes.flatten()):
     plot_probability_calibration(test, models[name], title, ax=ax)
 plt.tight_layout()
+plt.show()
+
+#%% Evaluate accuracy of predicted relative utilities
+model = models['true_temp']
+eval_temp = 1e-12
+fig, axes = plt.subplots(1, 4, figsize=(12, 3), sharex=True, sharey=True)
+for (name, title), ax in zip(plot_models, axes.flatten()):
+    img = plot_rel_util_accuracy(test, models[name], title, eval_temp=eval_temp, ax=ax)
+axes[0].set_ylabel(r'$U(x_2)$')
+fig.subplots_adjust(top=0.8)
+fig.suptitle('Relative Pref. Accuracy')
+
+fig.subplots_adjust(right=0.8)
+cbar_ax = fig.add_axes([0.82, 0.16, 0.015, 0.59])
+fig.colorbar(img, cax=cbar_ax)
 plt.show()

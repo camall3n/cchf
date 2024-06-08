@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from dataset import generate_dataset, filter_dataset_by_temp
-from model import build_preference_model, load_model
+from model import build_preference_model, load_model, FULL_MODEL, UTILS_MODEL
 from util import boltzmann_probability
 from plotting import plot_temp_histograms, plot_model_probs, plot_utility_calibration, plot_probability_calibration
 
@@ -64,7 +64,7 @@ except ValueError:
         if temps is None:
             temps = data.T
         if name != 'gt_utils':
-            subcomponent = 0
+            subcomponent = FULL_MODEL
             loss = keras.losses.BinaryCrossentropy()
             metrics = [keras.metrics.BinaryAccuracy(name="acc")]
             match model_str:
@@ -75,7 +75,7 @@ except ValueError:
                 case 'ternary':
                     labels = data.y_boltz_3ary
         else:
-            subcomponent = 1
+            subcomponent = UTILS_MODEL
             loss=[keras.losses.MeanSquaredError(), keras.losses.MeanSquaredError()],
             metrics=[
                 keras.metrics.MeanSquaredError(name="mse1"),

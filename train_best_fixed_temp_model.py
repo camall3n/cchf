@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from dataset import generate_dataset, filter_dataset_by_temp
-from model import build_preference_model, load_model
+from model import build_preference_model, load_model, FULL_MODEL, UTILS_MODEL
 from util import boltzmann_probability
 from plotting import plot_temp_histogram, plot_model_probs, plot_utility_calibration, plot_probability_calibration
 
@@ -25,9 +25,6 @@ model_str = 'binary'
 models_dir = f'models/{model_str}/n_{N}/'
 for subdir in ['prefs', 'utils']:
     os.makedirs(models_dir+subdir, exist_ok=True)
-
-FULL_MODEL = 0
-UTILS_MODEL = 1
 
 #%% Generate datasets
 train, test = generate_dataset(n_train=N, tmin=Tmin, tmax=Tmax)
